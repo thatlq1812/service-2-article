@@ -12,7 +12,59 @@ message Article {
   int32 id = 1;
   string title = 2;
   string content = 3;
-  int32 user_id = 4; //Foregin key
+  int32 user_id = 4; // Foregin key
   string created_at = 5;
   string updated_at = 6;
+}
+
+message ArticleWithUser {
+  Article article = 1; // Nested message
+  user.User user = 2; // Imported message
+}
+
+
+
+message CreateArticleRequest {
+  string title = 1;
+  string content = 2;
+  int32 user_id = 3;
+}
+
+message GetArticleRequest {
+  int32 id = 1;
+}
+
+message UpdateArticleRequest {
+  int32 id = 1;
+  string title = 2;
+  string content = 3;
+}
+
+messsage DeleteArticleRequest {
+  int32 id = 1;
+}
+
+message ListArticlesRequest {
+  int32 page_size = 1;
+  int32 page_number = 2;
+  int32 user_id = 3; //Filter by user
+}
+
+
+
+message ListArticlesResponse {
+  repeated ArticleWithUser articles = 1;
+  int32 total = 2;
+  int32 page = 3;
+  int32 total_pages = 4;
+}
+
+
+
+service ArticleService {
+  rpc CreateArticle(CreateArticleRequest) returns (Article);
+  rpc GetArticle(GetArticleRequest) returns (ArticleWithUser);
+  rpc UpdateArticle(UpdateUserRequest) returns (Article);
+  rpc DeleteArticle(DeleteArticleRequest) returns (Article);
+  rpc ListArticles(ListArticlesRequest) returns (ListArticlesResponse);
 }
