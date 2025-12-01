@@ -40,7 +40,7 @@ message UpdateArticleRequest {
   string content = 3;
 }
 
-messsage DeleteArticleRequest {
+message DeleteArticleRequest {
   int32 id = 1;
 }
 
@@ -64,7 +64,7 @@ message ListArticlesResponse {
 service ArticleService {
   rpc CreateArticle(CreateArticleRequest) returns (Article);
   rpc GetArticle(GetArticleRequest) returns (ArticleWithUser);
-  rpc UpdateArticle(UpdateUserRequest) returns (Article);
+  rpc UpdateArticle(UpdateArticleRequest) returns (Article);
   rpc DeleteArticle(DeleteArticleRequest) returns (Article);
   rpc ListArticles(ListArticlesRequest) returns (ListArticlesResponse);
 }
