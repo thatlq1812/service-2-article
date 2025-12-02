@@ -3,6 +3,11 @@ package main
 import (
 	"log"
 	"net"
+	"os"
+	"strconv"
+	"time"
+
+	"github.com/joho/godotenv"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
@@ -14,14 +19,70 @@ import (
 	pb "article-service/proto"
 )
 
+func mustGetEnvInt32(key string, defaultValue int32) int32 {
+	valStr := os.Getenv(key)
+	if valStr == "" {
+		return defaultValue
+	}
+	val, err := strconv.ParseInt(valStr, 10, 32)
+	if err != nil {
+		log.Printf("W: could not parse %s='%s' to int32. Using default value %d.", key, valStr, defaultValue)
+		return defaultValue
+	}
+	return int32(val)
+}
+
+func mustGetEnvDuration(key string, defaultValue time.Duration) time.Duration {
+	valStr := os.Getenv(key)
+	if valStr == "" {
+		return defaultValue
+	}
+	val, err := time.ParseDuration(valStr)
+	if err != nil {
+		log.Fatalf("Error: Could not parse %s='%s' to time.Duration. Example format: 1h, 30m, 5s.", key, valStr)
+		return defaultValue
+	}
+	return val
+}
+
+func LoadDBConfig() db.Config {
+	if err := godotenv.Load(); err != nil {
+		log.Println("No .env file found.")
+	}
+
+	return db.Config{
+		Host:     os.Getenv("DB_HOST"),
+		Port:     os.Getenv("DB_PORT"),
+		User:     os.Getenv("DB_USER"),
+		Password: os.Getenv("DB_PASSWORD"),
+		DBName:   os.Getenv("DB_NAME"),
+
+		MaxConns:        mustGetEnvInt32("DB_MAX_CONNS", 10),
+		MinConns:        mustGetEnvInt32("DB_MIN_CONNS", 2),
+		MaxConnLifetime: mustGetEnvDuration("DB_MAX_CONN_LIFETIME", time.Hour),
+		MaxConnIdleTime: mustGetEnvDuration("DB_MAX_CONN_IDLE_TIME", 30*time.Minute),
+		ConnectTimeout:  mustGetEnvDuration("DB_CONNECT_TIMEOUT", 5*time.Second),
+	}
+}
+
 func main() {
+
+	if err := godotenv.Load(); err != nil {
+		log.Println("No .env file found.")
+	}
 	// 1. Setup database connection
 	dbConfig := db.Config{
-		Host:     "127.0.0.1",
-		Port:     "5432",
-		User:     "postgres",
-		Password: "postgres",
-		DBName:   "agrios_articles",
+		Host:     os.Getenv("DB_HOST"),
+		Port:     os.Getenv("DB_PORT"),
+		User:     os.Getenv("DB_USER"),
+		Password: os.Getenv("DB_PASSWORD"),
+		DBName:   os.Getenv("DB_NAME"),
+
+		MaxConns:        mustGetEnvInt32("DB_MAX_CONNS", 10),
+		MinConns:        mustGetEnvInt32("DB_MIN_CONNS", 2),
+		MaxConnLifetime: mustGetEnvDuration("DB_MAX_CONN_LIFETIME", time.Hour),
+		MaxConnIdleTime: mustGetEnvDuration("DB_MAX_CONN_IDLE_TIME", 30*time.Minute),
+		ConnectTimeout:  mustGetEnvDuration("DB_CONNECT_TIMEOUT", 5*time.Second),
 	}
 
 	pool, err := db.NewPostgresPool(dbConfig)
@@ -51,6 +112,11 @@ func main() {
 	reflection.Register(grpcServer)
 
 	// 5. Start listening
+	listenPort := os.Getenv("GRCP_PORT")
+	if listenPort == "" {
+		listenPort = "50052"
+	}
+
 	listener, err := net.Listen("tcp", ":50052")
 	if err != nil {
 		log.Fatalf("Failed to listen: %v", err)
