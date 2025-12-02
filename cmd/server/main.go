@@ -19,9 +19,9 @@ func main() {
 	dbConfig := db.Config{
 		Host:     "127.0.0.1",
 		Port:     "5432",
-		User:     "agrios",
-		Password: "postgres123",
-		DBName:   "articledb",
+		User:     "postgres",
+		Password: "postgres",
+		DBName:   "agrios_articles",
 	}
 
 	pool, err := db.NewPostgresPool(dbConfig)
