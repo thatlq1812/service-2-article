@@ -2,7 +2,6 @@ package server
 
 import (
 	"context"
-	"fmt"
 	"strings"
 
 	"google.golang.org/grpc/codes"
@@ -11,6 +10,12 @@ import (
 	"article-service/internal/client"
 	"article-service/internal/repository"
 	pb "article-service/proto"
+)
+
+const (
+	defaultPageSize = 10
+	maxPageSize     = 100
+	errNoRows       = "no rows"
 )
 
 // articleServiceServer implements ArticleServiceServer
@@ -28,80 +33,50 @@ func NewArticleServiceServer(repo repository.ArticleRepository, userClient *clie
 	}
 }
 
-// GetArticle implements GetArticle RPC
-// Returns article with user info (same as GetArticleWithUser)
+// GetArticle retrieves an article with user information
+// This is a convenience method that delegates to GetArticleWithUser
 func (s *articleServiceServer) GetArticle(ctx context.Context, req *pb.GetArticleRequest) (*pb.ArticleWithUser, error) {
-	// Validate input
-	if req.Id <= 0 {
-		return nil, status.Error(codes.InvalidArgument, "article ID must be positive")
-	}
-
-	// Get article from database
-	article, err := s.repo.GetByID(ctx, req.Id)
-	if err != nil {
-		if strings.Contains(err.Error(), "no rows") {
-			return nil, status.Error(codes.NotFound, fmt.Sprintf("article with ID %d not found", req.Id))
-		}
-		return nil, status.Error(codes.Internal, "failed to get article")
-	}
-
-	// Call Service-1 to get user info
-	user, err := s.userClient.GetUser(ctx, article.UserId)
-	if err != nil {
-		// If user not found, still return article but with nil user
-		if status.Code(err) == codes.NotFound {
-			return &pb.ArticleWithUser{
-				Article: article,
-				User:    nil,
-			}, nil
-		}
-		return nil, status.Error(codes.Internal, "failed to get user from service-1")
-	}
-
-	return &pb.ArticleWithUser{
-		Article: article,
-		User:    user,
-	}, nil
+	return s.GetArticleWithUser(ctx, req)
 }
 
-// GetArticleWithUser implements GetArticleWithUser RPC
-// This demonstrates inter-service communication
+// GetArticleWithUser retrieves an article with associated user information via inter-service communication
+// If the user is not found or deleted, returns the article with a nil user
 func (s *articleServiceServer) GetArticleWithUser(ctx context.Context, req *pb.GetArticleRequest) (*pb.ArticleWithUser, error) {
 	// Validate input
 	if req.Id <= 0 {
 		return nil, status.Error(codes.InvalidArgument, "article ID must be positive")
 	}
 
-	// 1. Get article from database
+	// 1. Retrieve article from database
 	article, err := s.repo.GetByID(ctx, req.Id)
 	if err != nil {
-		if strings.Contains(err.Error(), "no rows") {
-			return nil, status.Error(codes.NotFound, fmt.Sprintf("article with ID %d not found", req.Id))
+		if strings.Contains(err.Error(), errNoRows) {
+			return nil, status.Errorf(codes.NotFound, "article with ID %d not found", req.Id)
 		}
-		return nil, status.Error(codes.Internal, "failed to get article")
+		return nil, status.Errorf(codes.Internal, "failed to get article: %v", err)
 	}
 
-	// 2. Call Service-1 to get user info (inter-service communication)
+	// 2. Fetch user information from User Service (inter-service communication)
 	user, err := s.userClient.GetUser(ctx, article.UserId)
 	if err != nil {
-		// If user not found, still return article but with nil user
+		// If user not found, still return article with nil user (user may be deleted)
 		if status.Code(err) == codes.NotFound {
 			return &pb.ArticleWithUser{
 				Article: article,
-				User:    nil, // User deleted or not found
+				User:    nil,
 			}, nil
 		}
-		return nil, status.Error(codes.Internal, "failed to get user from service-1")
+		return nil, status.Errorf(codes.Internal, "failed to get user from user service: %v", err)
 	}
 
-	// 3. Combine article + user data
+	// 3. Return combined article and user data
 	return &pb.ArticleWithUser{
 		Article: article,
 		User:    user,
 	}, nil
 }
 
-// CreateArticle implements CreateArticle RPC
+// CreateArticle creates a new article after verifying the user exists
 func (s *articleServiceServer) CreateArticle(ctx context.Context, req *pb.CreateArticleRequest) (*pb.Article, error) {
 	// Validate input
 	if req.Title == "" {
@@ -114,25 +89,26 @@ func (s *articleServiceServer) CreateArticle(ctx context.Context, req *pb.Create
 		return nil, status.Error(codes.InvalidArgument, "user ID must be positive")
 	}
 
-	// Verify user exists by calling Service-1
+	// Verify user exists by calling User Service
 	_, err := s.userClient.GetUser(ctx, req.UserId)
 	if err != nil {
 		if status.Code(err) == codes.NotFound {
-			return nil, status.Error(codes.InvalidArgument, fmt.Sprintf("user with ID %d not found", req.UserId))
+			return nil, status.Errorf(codes.InvalidArgument, "user with ID %d not found", req.UserId)
 		}
-		return nil, status.Error(codes.Internal, "failed to verify user")
+		return nil, status.Errorf(codes.Internal, "failed to verify user: %v", err)
 	}
 
 	// Create article in database
 	article, err := s.repo.Create(ctx, req.Title, req.Content, req.UserId)
 	if err != nil {
-		return nil, status.Error(codes.Internal, "failed to create article")
+		return nil, status.Errorf(codes.Internal, "failed to create article: %v", err)
 	}
 
 	return article, nil
 }
 
-// UpdateArticle implements UpdateArticle RPC
+// UpdateArticle updates an article's title and/or content
+// Partial updates are supported - omitted fields retain their existing values
 func (s *articleServiceServer) UpdateArticle(ctx context.Context, req *pb.UpdateArticleRequest) (*pb.Article, error) {
 	// Validate input
 	if req.Id <= 0 {
@@ -142,16 +118,16 @@ func (s *articleServiceServer) UpdateArticle(ctx context.Context, req *pb.Update
 		return nil, status.Error(codes.InvalidArgument, "at least title or content must be provided")
 	}
 
-	// Check if article exists
+	// Check if article exists and get current values
 	existing, err := s.repo.GetByID(ctx, req.Id)
 	if err != nil {
-		if strings.Contains(err.Error(), "no rows") {
-			return nil, status.Error(codes.NotFound, fmt.Sprintf("article with ID %d not found", req.Id))
+		if strings.Contains(err.Error(), errNoRows) {
+			return nil, status.Errorf(codes.NotFound, "article with ID %d not found", req.Id)
 		}
-		return nil, status.Error(codes.Internal, "failed to check article")
+		return nil, status.Errorf(codes.Internal, "failed to check article: %v", err)
 	}
 
-	// Use existing values if not provided
+	// Use existing values for omitted fields
 	title := req.Title
 	if title == "" {
 		title = existing.Title
@@ -164,46 +140,47 @@ func (s *articleServiceServer) UpdateArticle(ctx context.Context, req *pb.Update
 	// Update article
 	article, err := s.repo.Update(ctx, req.Id, title, content)
 	if err != nil {
-		return nil, status.Error(codes.Internal, "failed to update article")
+		return nil, status.Errorf(codes.Internal, "failed to update article: %v", err)
 	}
 
 	return article, nil
 }
 
-// DeleteArticle implements DeleteArticle RPC
+// DeleteArticle deletes an article and returns the deleted article data
 func (s *articleServiceServer) DeleteArticle(ctx context.Context, req *pb.DeleteArticleRequest) (*pb.Article, error) {
 	// Validate input
 	if req.Id <= 0 {
 		return nil, status.Error(codes.InvalidArgument, "article ID must be positive")
 	}
 
-	// Get article before delete (to return it)
+	// Get article before deletion to return it in response
 	article, err := s.repo.GetByID(ctx, req.Id)
 	if err != nil {
-		if strings.Contains(err.Error(), "no rows") {
-			return nil, status.Error(codes.NotFound, fmt.Sprintf("article with ID %d not found", req.Id))
+		if strings.Contains(err.Error(), errNoRows) {
+			return nil, status.Errorf(codes.NotFound, "article with ID %d not found", req.Id)
 		}
-		return nil, status.Error(codes.Internal, "failed to get article")
+		return nil, status.Errorf(codes.Internal, "failed to get article: %v", err)
 	}
 
-	// Delete article
+	// Delete article from database
 	err = s.repo.Delete(ctx, req.Id)
 	if err != nil {
-		return nil, status.Error(codes.Internal, "failed to delete article")
+		return nil, status.Errorf(codes.Internal, "failed to delete article: %v", err)
 	}
 
 	return article, nil
 }
 
-// ListArticles implements ListArticles RPC
+// ListArticles retrieves a paginated list of articles with user information
+// Supports filtering by user ID. Fetches user data for each article via inter-service communication.
 func (s *articleServiceServer) ListArticles(ctx context.Context, req *pb.ListArticlesRequest) (*pb.ListArticlesResponse, error) {
-	// Validate pagination
+	// Validate and normalize pagination parameters
 	pageSize := req.PageSize
 	if pageSize <= 0 {
-		pageSize = 10 // default
+		pageSize = defaultPageSize
 	}
-	if pageSize > 100 {
-		pageSize = 100 // max limit
+	if pageSize > maxPageSize {
+		pageSize = maxPageSize
 	}
 
 	pageNumber := req.PageNumber
@@ -211,32 +188,32 @@ func (s *articleServiceServer) ListArticles(ctx context.Context, req *pb.ListArt
 		pageNumber = 0
 	}
 
-	// Calculate offset
+	// Calculate offset for pagination
 	offset := pageNumber * pageSize
 
-	// Get articles based on filter
+	// Retrieve articles based on filter
 	var articles []*pb.Article
 	var total int32
 	var err error
 
 	if req.UserId > 0 {
-		// Filter by user
+		// Filter by specific user
 		articles, total, err = s.repo.ListByUser(ctx, req.UserId, pageSize, offset)
 	} else {
-		// List all
+		// List all articles
 		articles, total, err = s.repo.ListAll(ctx, pageSize, offset)
 	}
 
 	if err != nil {
-		return nil, status.Error(codes.Internal, "failed to list articles")
+		return nil, status.Errorf(codes.Internal, "failed to list articles: %v", err)
 	}
 
-	// Convert Article to ArticleWithUser (fetch user info for each)
+	// Enrich articles with user information from User Service
 	articlesWithUser := make([]*pb.ArticleWithUser, 0, len(articles))
 	for _, article := range articles {
 		user, err := s.userClient.GetUser(ctx, article.UserId)
 		if err != nil {
-			// If user not found, still include article with nil user
+			// If user not found, include article with nil user (user may be deleted)
 			user = nil
 		}
 		articlesWithUser = append(articlesWithUser, &pb.ArticleWithUser{
@@ -245,7 +222,7 @@ func (s *articleServiceServer) ListArticles(ctx context.Context, req *pb.ListArt
 		})
 	}
 
-	// Calculate pagination info
+	// Calculate total pages
 	totalPages := (total + pageSize - 1) / pageSize
 
 	return &pb.ListArticlesResponse{
