@@ -10,12 +10,12 @@ import (
 	"google.golang.org/grpc/reflection"
 
 	"agrios/pkg/common"
-	"article-service/internal/client"
-	"article-service/internal/config"
-	"article-service/internal/db"
-	"article-service/internal/repository"
-	"article-service/internal/server"
-	pb "article-service/proto"
+	"service-2-article/internal/client"
+	"service-2-article/internal/config"
+	"service-2-article/internal/db"
+	"service-2-article/internal/repository"
+	"service-2-article/internal/server"
+	pb "service-2-article/proto"
 )
 
 func main() {
@@ -48,7 +48,7 @@ func main() {
 
 	// 5. Setup gRPC server
 	grpcServer := grpc.NewServer()
-	articleServer := server.NewArticleServiceServer(articleRepo, userClient)
+	articleServer := server.NewArticleServer(articleRepo, userClient, cfg.JWTSecret)
 	pb.RegisterArticleServiceServer(grpcServer, articleServer)
 
 	// 6. Enable reflection for tools like grpcurl

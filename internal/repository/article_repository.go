@@ -1,8 +1,8 @@
 package repository
 
 import (
-	pb "article-service/proto"
 	"context"
+	pb "service-2-article/proto"
 )
 
 // ArticleRepository define CRUD operations for articles

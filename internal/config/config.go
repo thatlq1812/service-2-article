@@ -2,7 +2,7 @@ package config
 
 import (
 	"agrios/pkg/common"
-	"article-service/internal/db"
+	"service-2-article/internal/db"
 	"time"
 )
 
@@ -12,7 +12,8 @@ type Config struct {
 	ShutdownTimeout time.Duration
 	UserServiceAddr string
 
-	DB db.Config
+	DB        db.Config
+	JWTSecret string
 }
 
 func Load() *Config {
@@ -21,6 +22,9 @@ func Load() *Config {
 		GRPCPort:        common.GetEnvString("GRPC_PORT", "50052"),
 		ShutdownTimeout: common.GetEnvDuration("SHUTDOWN_TIMEOUT", 10*time.Second),
 		UserServiceAddr: common.GetEnvString("USER_SERVICE_ADDR", "localhost:50051"),
+
+		// JWT
+		JWTSecret: common.GetEnvString("JWT_SECRET", "insecure-default-secret-change-this"), // default value for Dev
 
 		// Database Config
 		DB: db.Config{

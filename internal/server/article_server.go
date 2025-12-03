@@ -5,13 +5,14 @@ import (
 	"log"
 	"strings"
 
+	userpb "service-1-user/proto"
+	"service-2-article/internal/auth"
+	"service-2-article/internal/client"
+	"service-2-article/internal/repository"
+	pb "service-2-article/proto"
+
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-
-	"article-service/internal/client"
-	"article-service/internal/repository"
-	pb "article-service/proto"
-	userpb "service-1-user/proto"
 )
 
 const (
@@ -34,30 +35,80 @@ func convertUser(userServiceUser *userpb.User) *pb.User {
 	}
 }
 
-// articleServiceServer implements ArticleServiceServer
-type articleServiceServer struct {
+type ArticleServer struct {
 	pb.UnimplementedArticleServiceServer
 	repo       repository.ArticleRepository
 	userClient *client.UserClient
+	jwtSecret  string
 }
 
-// NewArticleServiceServer creates new server instance
-func NewArticleServiceServer(repo repository.ArticleRepository, userClient *client.UserClient) pb.ArticleServiceServer {
-	return &articleServiceServer{
+func NewArticleServer(repo repository.ArticleRepository, userClient *client.UserClient, jwtSecret string) *ArticleServer {
+	return &ArticleServer{
 		repo:       repo,
 		userClient: userClient,
+		jwtSecret:  jwtSecret,
 	}
+}
+
+func (s *ArticleServer) CreateArticle(ctx context.Context, req *pb.CreateArticleRequest) (*pb.Article, error) {
+	// Validate authentication
+	userID, err := auth.GetUserIDFromContext(ctx, s.jwtSecret)
+	if err != nil {
+		log.Printf("[CreateArticle] Authentication failed: %v", err)
+		return nil, status.Error(codes.Unauthenticated, "authentication required")
+	}
+
+	// Validate input
+	if req.Title == "" {
+		log.Printf("[CreateArticle] Invalid argument: title is empty")
+		return nil, status.Error(codes.InvalidArgument, "title is required")
+	}
+	if req.Content == "" {
+		log.Printf("[CreateArticle] Invalid argument: content is empty")
+		return nil, status.Error(codes.InvalidArgument, "content is required")
+	}
+
+	// Verify user exists by calling User Service
+	log.Printf("[CreateArticle] Verifying user exists: user_id=%d", userID)
+	_, err = s.userClient.GetUser(ctx, int32(userID))
+	if err != nil {
+		st := status.Convert(err)
+		switch st.Code() {
+		case codes.NotFound:
+			log.Printf("[CreateArticle] User not found: user_id=%d", userID)
+			return nil, status.Errorf(codes.InvalidArgument, "user with ID %d not found", userID)
+		case codes.Unavailable:
+			log.Printf("[CreateArticle] User service unavailable: user_id=%d", userID)
+			return nil, status.Error(codes.Unavailable, "user service is currently unavailable, please try again later")
+		case codes.DeadlineExceeded:
+			log.Printf("[CreateArticle] User service timeout: user_id=%d", userID)
+			return nil, status.Error(codes.DeadlineExceeded, "request timeout while verifying user")
+		default:
+			log.Printf("[CreateArticle] Failed to verify user: user_id=%d, error=%v", userID, err)
+			return nil, status.Errorf(codes.Internal, "failed to verify user: %v", err)
+		}
+	}
+
+	// Create article in database with authenticated user ID
+	article, err := s.repo.Create(ctx, req.Title, req.Content, int32(userID))
+	if err != nil {
+		log.Printf("[CreateArticle] Database error: user_id=%d, error=%v", userID, err)
+		return nil, status.Errorf(codes.Internal, "failed to create article: %v", err)
+	}
+
+	log.Printf("[CreateArticle] Success: article_id=%d, user_id=%d", article.Id, userID)
+	return article, nil
 }
 
 // GetArticle retrieves an article with user information
 // This is a convenience method that delegates to GetArticleWithUser
-func (s *articleServiceServer) GetArticle(ctx context.Context, req *pb.GetArticleRequest) (*pb.ArticleWithUser, error) {
+func (s *ArticleServer) GetArticle(ctx context.Context, req *pb.GetArticleRequest) (*pb.ArticleWithUser, error) {
 	return s.GetArticleWithUser(ctx, req)
 }
 
 // GetArticleWithUser retrieves an article with associated user information via inter-service communication
 // If the user is not found or deleted, returns the article with a nil user
-func (s *articleServiceServer) GetArticleWithUser(ctx context.Context, req *pb.GetArticleRequest) (*pb.ArticleWithUser, error) {
+func (s *ArticleServer) GetArticleWithUser(ctx context.Context, req *pb.GetArticleRequest) (*pb.ArticleWithUser, error) {
 	// Validate input
 	if req.Id <= 0 {
 		log.Printf("[GetArticleWithUser] Invalid argument: article_id=%d", req.Id)
@@ -107,8 +158,8 @@ func (s *articleServiceServer) GetArticleWithUser(ctx context.Context, req *pb.G
 	}, nil
 }
 
-// CreateArticle creates a new article after verifying the user exists
-func (s *articleServiceServer) CreateArticle(ctx context.Context, req *pb.CreateArticleRequest) (*pb.Article, error) {
+// CreateArticleOld creates a new article after verifying the user exists (DEPRECATED - use CreateArticle with auth)
+func (s *ArticleServer) CreateArticleOld(ctx context.Context, req *pb.CreateArticleRequest) (*pb.Article, error) {
 	// Validate input
 	if req.Title == "" {
 		log.Printf("[CreateArticle] Invalid argument: title is empty")
@@ -157,7 +208,7 @@ func (s *articleServiceServer) CreateArticle(ctx context.Context, req *pb.Create
 
 // UpdateArticle updates an article's title and/or content
 // Partial updates are supported - omitted fields retain their existing values
-func (s *articleServiceServer) UpdateArticle(ctx context.Context, req *pb.UpdateArticleRequest) (*pb.Article, error) {
+func (s *ArticleServer) UpdateArticle(ctx context.Context, req *pb.UpdateArticleRequest) (*pb.Article, error) {
 	// Validate input
 	if req.Id <= 0 {
 		return nil, status.Error(codes.InvalidArgument, "article ID must be positive")
@@ -195,7 +246,7 @@ func (s *articleServiceServer) UpdateArticle(ctx context.Context, req *pb.Update
 }
 
 // DeleteArticle deletes an article and returns the deleted article data
-func (s *articleServiceServer) DeleteArticle(ctx context.Context, req *pb.DeleteArticleRequest) (*pb.Article, error) {
+func (s *ArticleServer) DeleteArticle(ctx context.Context, req *pb.DeleteArticleRequest) (*pb.Article, error) {
 	// Validate input
 	if req.Id <= 0 {
 		return nil, status.Error(codes.InvalidArgument, "article ID must be positive")
@@ -221,7 +272,7 @@ func (s *articleServiceServer) DeleteArticle(ctx context.Context, req *pb.Delete
 
 // ListArticles retrieves a paginated list of articles with user information
 // Supports filtering by user ID. Fetches user data for each article via inter-service communication.
-func (s *articleServiceServer) ListArticles(ctx context.Context, req *pb.ListArticlesRequest) (*pb.ListArticlesResponse, error) {
+func (s *ArticleServer) ListArticles(ctx context.Context, req *pb.ListArticlesRequest) (*pb.ListArticlesResponse, error) {
 	// Validate and normalize pagination parameters
 	pageSize := req.PageSize
 	if pageSize <= 0 {

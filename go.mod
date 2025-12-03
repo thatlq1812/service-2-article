@@ -1,4 +1,4 @@
-module article-service
+module service-2-article
 
 go 1.24.0
 
@@ -8,6 +8,7 @@ replace service-1-user => ../service-1-user
 
 require (
 	agrios v0.0.0-00010101000000-000000000000
+	github.com/golang-jwt/jwt/v5 v5.3.0
 	github.com/jackc/pgx/v5 v5.7.6
 	github.com/joho/godotenv v1.5.1
 	google.golang.org/grpc v1.77.0

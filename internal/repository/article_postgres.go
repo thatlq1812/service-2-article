@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	pb "article-service/proto"
+	pb "service-2-article/proto"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )
