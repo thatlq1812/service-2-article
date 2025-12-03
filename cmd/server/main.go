@@ -67,7 +67,6 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to connect to user service: %v", err)
 	}
-	defer userClient.Close()
 	log.Printf("Connected to User Service at %s", userServiceAddr)
 
 	// 5. Setup gRPC server

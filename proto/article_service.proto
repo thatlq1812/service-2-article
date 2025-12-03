@@ -2,11 +2,16 @@ syntax = "proto3";
 
 package article;
 
-option go_package = "service-2-article/proto";
+option go_package = "article-service/proto";
 
-import "user_service.proto";
-
-
+// User message - lightweight copy for Article Service
+message User {
+  int32 id = 1;
+  string name = 2;
+  string email = 3;
+  string created_at = 4;
+  string updated_at = 5;
+}
 
 message Article {
   int32 id = 1;
@@ -18,8 +23,8 @@ message Article {
 }
 
 message ArticleWithUser {
-  Article article = 1; // Nested message
-  user.User user = 2; // Imported message
+  Article article = 1;
+  User user = 2;
 }
 
 
