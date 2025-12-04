@@ -65,8 +65,15 @@ func (c *UserClient) GetUser(ctx context.Context, userID int32) (*userpb.User, e
 		return c.handleGetUserError(err, userID)
 	}
 
-	log.Printf("[UserClient.GetUser] Success: user_id=%d, email=%s", resp.User.Id, resp.User.Email)
-	return resp.User, nil
+	// Extract user from wrapped response
+	if resp.GetData() == nil || resp.GetData().GetUser() == nil {
+		log.Printf("[UserClient.GetUser] User not found: user_id=%d", userID)
+		return nil, status.Error(codes.NotFound, "user not found")
+	}
+
+	user := resp.GetData().GetUser()
+	log.Printf("[UserClient.GetUser] Success: user_id=%d, email=%s", user.Id, user.Email)
+	return user, nil
 }
 
 // handleGetUserError processes errors from GetUser call
@@ -161,8 +168,14 @@ func (c *UserClient) ValidateToken(ctx context.Context, token string) (*userpb.V
 		return nil, err
 	}
 
-	if resp.Valid {
-		log.Printf("[UserClient.ValidateToken] Token valid: user_id=%d, email=%s", resp.UserId, resp.Email)
+	// Extract validation data from wrapped response
+	if resp.GetData() == nil {
+		log.Printf("[UserClient.ValidateToken] Invalid response structure")
+		return nil, status.Error(codes.Internal, "invalid response from user service")
+	}
+
+	if resp.GetData().GetValid() {
+		log.Printf("[UserClient.ValidateToken] Token valid: user_id=%d, email=%s", resp.GetData().GetUserId(), resp.GetData().GetEmail())
 	} else {
 		log.Printf("[UserClient.ValidateToken] Token invalid")
 	}

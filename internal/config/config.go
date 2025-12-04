@@ -13,7 +13,15 @@ type Config struct {
 	UserServiceAddr string
 
 	DB        db.Config
+	Redis     RedisConfig
 	JWTSecret string
+}
+
+// RedisConfig holds Redis connection settings
+type RedisConfig struct {
+	Addr     string
+	Password string
+	DB       int
 }
 
 func Load() *Config {
@@ -25,6 +33,13 @@ func Load() *Config {
 
 		// JWT
 		JWTSecret: common.GetEnvString("JWT_SECRET", "insecure-default-secret-change-this"), // default value for Dev
+
+		// Redis Config (for token blacklist check)
+		Redis: RedisConfig{
+			Addr:     common.GetEnvString("REDIS_ADDR", "localhost:6379"),
+			Password: common.GetEnvString("REDIS_PASSWORD", ""),
+			DB:       common.GetEnvInt("REDIS_DB", 0),
+		},
 
 		// Database Config
 		DB: db.Config{

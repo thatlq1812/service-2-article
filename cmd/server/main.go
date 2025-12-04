@@ -39,22 +39,30 @@ func main() {
 	// 3. Create repository
 	articleRepo := repository.NewArticlePostgresRepository(pool)
 
-	// 4. Create gRPC client to User Service (inter-service communication)
+	// 4. Setup Redis connection (for token blacklist check)
+	redisClient, err := db.NewRedisClient(cfg.Redis.Addr, cfg.Redis.Password, cfg.Redis.DB)
+	if err != nil {
+		log.Fatalf("Failed to connect to Redis: %v", err)
+	}
+	defer redisClient.Close()
+	log.Printf("Connected to Redis at %s", cfg.Redis.Addr)
+
+	// 5. Create gRPC client to User Service (inter-service communication)
 	userClient, err := client.NewUserClient(cfg.UserServiceAddr)
 	if err != nil {
 		log.Fatalf("Failed to connect to user service: %v", err)
 	}
 	log.Printf("Connected to User Service at %s", cfg.UserServiceAddr)
 
-	// 5. Setup gRPC server
+	// 6. Setup gRPC server
 	grpcServer := grpc.NewServer()
-	articleServer := server.NewArticleServer(articleRepo, userClient, cfg.JWTSecret)
+	articleServer := server.NewArticleServer(articleRepo, userClient, redisClient, cfg.JWTSecret)
 	pb.RegisterArticleServiceServer(grpcServer, articleServer)
 
-	// 6. Enable reflection for tools like grpcurl
+	// 7. Enable reflection for tools like grpcurl
 	reflection.Register(grpcServer)
 
-	// 7. Setup TCP listener
+	// 8. Setup TCP listener
 	listener, err := net.Listen("tcp", ":"+cfg.GRPCPort)
 	if err != nil {
 		log.Fatalf("Failed to listen on port %s: %v", cfg.GRPCPort, err)
@@ -62,14 +70,14 @@ func main() {
 
 	log.Printf("Article Service (gRPC) listening on port %s", cfg.GRPCPort)
 
-	// 8. Start server in goroutine to handle graceful shutdown
+	// 9. Start server in goroutine to handle graceful shutdown
 	go func() {
 		if err := grpcServer.Serve(listener); err != nil {
 			log.Fatalf("Failed to serve: %v", err)
 		}
 	}()
 
-	// 9. Wait for shutdown signal and perform graceful shutdown
+	// 10. Wait for shutdown signal and perform graceful shutdown
 	shutdownTimeout := common.GetEnvDuration("SHUTDOWN_TIMEOUT", cfg.ShutdownTimeout)
 	ctx := common.WaitForShutdown(shutdownTimeout)
 

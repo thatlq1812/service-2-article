@@ -41,21 +41,27 @@ type ArticleServer struct {
 	pb.UnimplementedArticleServiceServer
 	repo       repository.ArticleRepository
 	userClient *client.UserClient
+	redis      auth.TokenBlacklistChecker
 	jwtSecret  string
 }
 
-func NewArticleServer(repo repository.ArticleRepository, userClient *client.UserClient, jwtSecret string) *ArticleServer {
+func NewArticleServer(repo repository.ArticleRepository, userClient *client.UserClient, redis auth.TokenBlacklistChecker, jwtSecret string) *ArticleServer {
 	return &ArticleServer{
 		repo:       repo,
 		userClient: userClient,
+		redis:      redis,
 		jwtSecret:  jwtSecret,
 	}
 }
 
 func (s *ArticleServer) CreateArticle(ctx context.Context, req *pb.CreateArticleRequest) (*pb.CreateArticleResponse, error) {
-	// Validate authentication
-	userID, err := auth.GetUserIDFromContext(ctx, s.jwtSecret)
+	// Validate authentication (JWT + Redis blacklist check)
+	userID, err := auth.GetUserIDFromContextWithBlacklist(ctx, s.jwtSecret, s.redis)
 	if err != nil {
+		if err == auth.ErrTokenBlacklisted {
+			log.Printf("[CreateArticle] Token has been revoked (logged out)")
+			return response.CreateArticleError(codes.Unauthenticated, "token has been revoked"), nil
+		}
 		log.Printf("[CreateArticle] Authentication failed: %v", err)
 		return response.CreateArticleError(codes.Unauthenticated, "authentication required"), nil
 	}

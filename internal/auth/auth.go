@@ -11,9 +11,15 @@ import (
 )
 
 var (
-	ErrMissingToken = errors.New("missing authorization")
-	ErrInvalidToken = errors.New("invalid token")
+	ErrMissingToken     = errors.New("missing authorization")
+	ErrInvalidToken     = errors.New("invalid token")
+	ErrTokenBlacklisted = errors.New("token has been revoked")
 )
+
+// TokenBlacklistChecker interface for checking if token is blacklisted
+type TokenBlacklistChecker interface {
+	IsTokenBlacklisted(ctx context.Context, token string) (bool, error)
+}
 
 type Claims struct {
 	UserID uint64 `json:"user_id"`
@@ -68,6 +74,35 @@ func GetUserIDFromContext(ctx context.Context, jwtSecret string) (uint64, error)
 	claims, err := ValidateToken(token, jwtSecret)
 	if err != nil {
 		return 0, err
+	}
+
+	return claims.UserID, nil
+}
+
+// GetUserIDFromContextWithBlacklist validates token and checks Redis blacklist
+func GetUserIDFromContextWithBlacklist(ctx context.Context, jwtSecret string, blacklistChecker TokenBlacklistChecker) (uint64, error) {
+	// Extract token
+	token, err := ExtractTokenFromContext(ctx)
+	if err != nil {
+		return 0, err
+	}
+
+	// Validate JWT signature and expiry
+	claims, err := ValidateToken(token, jwtSecret)
+	if err != nil {
+		return 0, err
+	}
+
+	// Check if token is blacklisted (logged out)
+	isBlacklisted, err := blacklistChecker.IsTokenBlacklisted(ctx, token)
+	if err != nil {
+		// Log error but don't fail - fail open for Redis issues
+		// In production, you might want to fail closed (reject if Redis unavailable)
+		return 0, fmt.Errorf("failed to check token blacklist: %w", err)
+	}
+
+	if isBlacklisted {
+		return 0, ErrTokenBlacklisted
 	}
 
 	return claims.UserID, nil
