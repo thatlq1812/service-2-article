@@ -134,7 +134,7 @@ func (s *ArticleServer) GetArticleWithUser(ctx context.Context, req *pb.GetArtic
 	// Validate input
 	if req.Id <= 0 {
 		log.Printf("[GetArticleWithUser] Invalid argument: article_id=%d", req.Id)
-		return nil, status.Error(codes.InvalidArgument, "article ID must be positive")
+		return nil, response.GRPCError(codes.InvalidArgument, "Article ID must be positive. Provide a valid ID greater than 0.")
 	}
 
 	// 1. Retrieve article from database
@@ -142,10 +142,10 @@ func (s *ArticleServer) GetArticleWithUser(ctx context.Context, req *pb.GetArtic
 	if err != nil {
 		if strings.Contains(err.Error(), errNoRows) {
 			log.Printf("[GetArticleWithUser] Article not found: article_id=%d", req.Id)
-			return nil, status.Error(codes.NotFound, "article not found")
+			return nil, response.GRPCError(codes.NotFound, "Article not found. Verify the article ID exists.")
 		}
 		log.Printf("[GetArticleWithUser] Database error: article_id=%d, error=%v", req.Id, err)
-		return nil, status.Error(codes.Internal, "failed to get article")
+		return nil, response.GRPCError(codes.Internal, "Failed to get article. Contact support if the issue persists.")
 	}
 
 	// 2. Fetch user information from User Service (inter-service communication)
@@ -168,7 +168,7 @@ func (s *ArticleServer) GetArticleWithUser(ctx context.Context, req *pb.GetArtic
 			}, nil
 		default:
 			log.Printf("[GetArticleWithUser] User service error: article_id=%d, user_id=%d, error=%v", article.Id, article.UserId, err)
-			return nil, status.Error(codes.Internal, "failed to get user from user service")
+			return nil, response.GRPCError(codes.Internal, "Failed to get user from user service. Contact support if the issue persists.")
 		}
 	}
 
@@ -185,15 +185,15 @@ func (s *ArticleServer) CreateArticleOld(ctx context.Context, req *pb.CreateArti
 	// Validate input
 	if req.Title == "" {
 		log.Printf("[CreateArticle] Invalid argument: title is empty")
-		return nil, status.Error(codes.InvalidArgument, "title is required")
+		return nil, response.GRPCError(codes.InvalidArgument, "Title is required. Provide a valid title.")
 	}
 	if req.Content == "" {
 		log.Printf("[CreateArticle] Invalid argument: content is empty")
-		return nil, status.Error(codes.InvalidArgument, "content is required")
+		return nil, response.GRPCError(codes.InvalidArgument, "Content is required. Provide valid content.")
 	}
 	if req.UserId <= 0 {
 		log.Printf("[CreateArticle] Invalid argument: user_id=%d", req.UserId)
-		return nil, status.Error(codes.InvalidArgument, "user ID must be positive")
+		return nil, response.GRPCError(codes.InvalidArgument, "User ID must be positive. Provide a valid ID greater than 0.")
 	}
 
 	// Verify user exists by calling User Service with retry
@@ -204,16 +204,16 @@ func (s *ArticleServer) CreateArticleOld(ctx context.Context, req *pb.CreateArti
 		switch st.Code() {
 		case codes.NotFound:
 			log.Printf("[CreateArticle] User not found: user_id=%d", req.UserId)
-			return nil, status.Errorf(codes.InvalidArgument, "user with ID %d not found", req.UserId)
+			return nil, response.GRPCError(codes.InvalidArgument, fmt.Sprintf("User with ID %d not found. Verify the user ID exists.", req.UserId))
 		case codes.Unavailable:
 			log.Printf("[CreateArticle] User service unavailable: user_id=%d", req.UserId)
-			return nil, status.Error(codes.Unavailable, "user service is currently unavailable, please try again later")
+			return nil, response.GRPCError(codes.Unavailable, "User service is currently unavailable. Please try again later.")
 		case codes.DeadlineExceeded:
 			log.Printf("[CreateArticle] User service timeout: user_id=%d", req.UserId)
-			return nil, status.Error(codes.DeadlineExceeded, "request timeout while verifying user")
+			return nil, response.GRPCError(codes.DeadlineExceeded, "Request timeout while verifying user. Please try again.")
 		default:
 			log.Printf("[CreateArticle] Failed to verify user: user_id=%d, error=%v", req.UserId, err)
-			return nil, status.Errorf(codes.Internal, "failed to verify user: %v", err)
+			return nil, response.GRPCError(codes.Internal, fmt.Sprintf("Failed to verify user: %v. Contact support if the issue persists.", err))
 		}
 	}
 
@@ -221,7 +221,7 @@ func (s *ArticleServer) CreateArticleOld(ctx context.Context, req *pb.CreateArti
 	article, err := s.repo.Create(ctx, req.Title, req.Content, req.UserId)
 	if err != nil {
 		log.Printf("[CreateArticle] Database error: user_id=%d, error=%v", req.UserId, err)
-		return nil, status.Errorf(codes.Internal, "failed to create article: %v", err)
+		return nil, response.GRPCError(codes.Internal, fmt.Sprintf("Failed to create article: %v. Contact support if the issue persists.", err))
 	}
 
 	log.Printf("[CreateArticle] Success: article_id=%d, user_id=%d", article.Id, req.UserId)
@@ -305,12 +305,12 @@ func (s *ArticleServer) ListArticles(ctx context.Context, req *pb.ListArticlesRe
 	}
 
 	pageNumber := req.PageNumber
-	if pageNumber < 0 {
-		pageNumber = 0
+	if pageNumber < 1 {
+		pageNumber = 1
 	}
 
-	// Calculate offset for pagination
-	offset := pageNumber * pageSize
+	// Calculate offset for pagination (page starts from 1)
+	offset := (pageNumber - 1) * pageSize
 
 	// Retrieve articles based on filter
 	var articles []*pb.Article

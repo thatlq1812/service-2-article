@@ -11,6 +11,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	userpb "service-1-user/proto"
+	"service-2-article/internal/response"
 )
 
 const (
@@ -42,7 +43,7 @@ func NewUserClient(address string) (*UserClient, error) {
 	)
 	if err != nil {
 		log.Printf("[UserClient] Failed to connect to user service: address=%s, error=%v", address, err)
-		return nil, status.Errorf(codes.Unavailable, "failed to connect to user service: %v", err)
+		return nil, response.GRPCError(codes.Unavailable, "Failed to connect to user service. Check network and service availability.")
 	}
 
 	log.Printf("[UserClient] Successfully connected to user service at %s", address)
@@ -68,7 +69,7 @@ func (c *UserClient) GetUser(ctx context.Context, userID int32) (*userpb.User, e
 	// Extract user from wrapped response
 	if resp.GetData() == nil || resp.GetData().GetUser() == nil {
 		log.Printf("[UserClient.GetUser] User not found: user_id=%d", userID)
-		return nil, status.Error(codes.NotFound, "user not found")
+		return nil, response.GRPCError(codes.NotFound, "User not found. Verify the user ID exists.")
 	}
 
 	user := resp.GetData().GetUser()
@@ -81,33 +82,33 @@ func (c *UserClient) handleGetUserError(err error, userID int32) (*userpb.User, 
 	st, ok := status.FromError(err)
 	if !ok {
 		log.Printf("[UserClient.GetUser] Unknown error: user_id=%d, error=%v", userID, err)
-		return nil, status.Error(codes.Internal, "unknown error from user service")
+		return nil, response.GRPCError(codes.Internal, "Unknown error from user service. Contact support if the issue persists.")
 	}
 
 	switch st.Code() {
 	case codes.NotFound:
 		log.Printf("[UserClient.GetUser] User not found: user_id=%d", userID)
-		return nil, status.Errorf(codes.NotFound, "user not found: %d", userID)
+		return nil, response.GRPCError(codes.NotFound, "User not found. Verify the user ID exists.")
 
 	case codes.InvalidArgument:
 		log.Printf("[UserClient.GetUser] Invalid argument: user_id=%d, error=%s", userID, st.Message())
-		return nil, status.Errorf(codes.InvalidArgument, "invalid user id: %d", userID)
+		return nil, response.GRPCError(codes.InvalidArgument, "Invalid user ID. Provide a valid ID greater than 0.")
 
 	case codes.DeadlineExceeded:
 		log.Printf("[UserClient.GetUser] Timeout: user_id=%d, timeout=%v", userID, defaultTimeout)
-		return nil, status.Error(codes.DeadlineExceeded, "user service timeout")
+		return nil, response.GRPCError(codes.DeadlineExceeded, "User service timeout. Please try again.")
 
 	case codes.Unavailable:
 		log.Printf("[UserClient.GetUser] Service unavailable: user_id=%d", userID)
-		return nil, status.Error(codes.Unavailable, "user service is currently unavailable")
+		return nil, response.GRPCError(codes.Unavailable, "User service is currently unavailable. Check service status.")
 
 	case codes.Internal:
 		log.Printf("[UserClient.GetUser] Internal error: user_id=%d, error=%s", userID, st.Message())
-		return nil, status.Error(codes.Internal, "user service internal error")
+		return nil, response.GRPCError(codes.Internal, "User service internal error. Contact support if the issue persists.")
 
 	default:
 		log.Printf("[UserClient.GetUser] Unexpected error: user_id=%d, code=%s, message=%s", userID, st.Code(), st.Message())
-		return nil, status.Errorf(codes.Unknown, "unexpected error from user service: %s", st.Message())
+		return nil, response.GRPCError(codes.Unknown, "Unexpected error from user service. Contact support if the issue persists.")
 	}
 }
 
@@ -171,7 +172,7 @@ func (c *UserClient) ValidateToken(ctx context.Context, token string) (*userpb.V
 	// Extract validation data from wrapped response
 	if resp.GetData() == nil {
 		log.Printf("[UserClient.ValidateToken] Invalid response structure")
-		return nil, status.Error(codes.Internal, "invalid response from user service")
+		return nil, response.GRPCError(codes.Internal, "Invalid response from user service. Contact support if the issue persists.")
 	}
 
 	if resp.GetData().GetValid() {

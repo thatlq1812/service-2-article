@@ -1,114 +1,98 @@
 # Article Service
 
-Article management microservice for Agrios platform with user integration.
+gRPC microservice for article management with user integration.
 
-## Features
-
-- Article CRUD operations
-- User authentication via JWT
-- Automatic user data enrichment (joins with User Service)
-- gRPC API with wrapped response format
-- Microservice-to-microservice communication
+**Port:** `50052` | **Protocol:** gRPC
 
 ## Quick Start
 
-### Prerequisites
-
-- Go 1.21+
-- PostgreSQL 15+
-- **Redis 7+** (shared with User Service for token blacklist)
-- **User Service running** (for user data integration)
-
-### Setup
-
-1. **Clone and configure:**
 ```bash
-git clone <repo-url>
-cd service-2-article
-cp .env.example .env
-# Edit .env with your configuration
-```
-
-2. **Install dependencies:**
-```bash
-go mod download
-```
-
-3. **Setup database:**
-```bash
-# Create database
+# Setup database
 psql -U postgres -c "CREATE DATABASE agrios_articles;"
-
-# Run migrations
 psql -U postgres -d agrios_articles -f migrations/001_create_articles_table.sql
-```
 
-4. **Run service:**
-```bash
-# Make sure User Service is running first!
-# Development
+# Run (User Service must be running first!)
+cp .env.example .env  # Edit with your config
 go run cmd/server/main.go
-
-# Build and run
-go build -o bin/article-service cmd/server/main.go
-./bin/article-service
 ```
 
-Service will start on port **50052** (gRPC).
+## Environment Variables
 
-### Docker
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `DB_HOST` | localhost | PostgreSQL host |
+| `DB_PORT` | 5432 | PostgreSQL port |
+| `DB_NAME` | agrios_articles | Database name |
+| `REDIS_ADDR` | localhost:6379 | Redis (shared with User Service) |
+| `JWT_SECRET` | *required* | JWT secret (must match User Service) |
+| `USER_SERVICE_ADDR` | localhost:50051 | User Service address |
+| `GRPC_PORT` | 50052 | gRPC server port |
 
-```bash
-# Build
-docker build -t article-service .
+---
 
-# Run (link to user service)
-docker run -p 50052:50052 --env-file .env article-service
+# API Reference
+
+### 1. CreateArticle
+
+Create a new article. **Requires authentication.**
+
+**Request:**
+```protobuf
+message CreateArticleRequest {
+  string title = 1;    // Required
+  string content = 2;  // Required
+  int32 user_id = 3;   // Required (author)
+}
 ```
 
-## API Documentation
-
-### gRPC Methods
-
-1. **CreateArticle** - Create new article (requires auth)
-2. **GetArticle** - Get article by ID (with user info)
-3. **UpdateArticle** - Update article
-4. **DeleteArticle** - Delete article
-5. **ListArticles** - Paginated article list (with user info)
-
-### Authentication
-
-CreateArticle requires JWT token in metadata:
-
+**Example:**
 ```bash
 grpcurl -plaintext \
-  -H "authorization: Bearer <token>" \
-  -d '{"title":"My Article","content":"Content..."}' \
-  localhost:50052 article.ArticleService.CreateArticle
+  -H "authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." \
+  -d '{
+    "title": "My First Article",
+    "content": "This is the content...",
+    "user_id": 1
+  }' localhost:50052 article.ArticleService/CreateArticle
 ```
 
-### Response Format
-
-All responses use wrapped format:
+**Response:**
 ```json
 {
   "code": "000",
   "message": "success",
-  "data": {...}
+  "data": {
+    "article": {
+      "id": 1,
+      "title": "My First Article",
+      "content": "This is the content...",
+      "user_id": 1,
+      "created_at": "2025-01-01T00:00:00Z",
+      "updated_at": "2025-01-01T00:00:00Z"
+    }
+  }
 }
 ```
 
-**Error codes:**
-- `000` - Success
-- `003` - Invalid argument (missing title/content)
-- `005` - Not found
-- `013` - Internal error
-- `014` - Unauthenticated (missing/invalid token)
+---
 
-### User Data Integration
+### 2. GetArticle
 
-GetArticle and ListArticles automatically fetch user information from User Service:
+Get article with author information.
 
+**Request:**
+```protobuf
+message GetArticleRequest {
+  int32 id = 1;  // Required
+}
+```
+
+**Example:**
+```bash
+grpcurl -plaintext -d '{"id": 1}' localhost:50052 article.ArticleService/GetArticle
+```
+
+**Response:**
 ```json
 {
   "code": "000",
@@ -117,8 +101,11 @@ GetArticle and ListArticles automatically fetch user information from User Servi
     "article": {
       "article": {
         "id": 1,
-        "title": "My Article",
-        "userId": 1
+        "title": "My First Article",
+        "content": "This is the content...",
+        "user_id": 1,
+        "created_at": "2025-01-01T00:00:00Z",
+        "updated_at": "2025-01-01T00:00:00Z"
       },
       "user": {
         "id": 1,
@@ -130,126 +117,154 @@ GetArticle and ListArticles automatically fetch user information from User Servi
 }
 ```
 
-### Testing
+---
 
+### 3. UpdateArticle
+
+Update article title and/or content.
+
+**Request:**
+```protobuf
+message UpdateArticleRequest {
+  int32 id = 1;       // Required
+  string title = 2;   // Optional
+  string content = 3; // Optional
+}
+```
+
+**Example:**
 ```bash
-# Install grpcurl
-go install github.com/fullstorydev/grpcurl/cmd/grpcurl@latest
-
-# 1. Login via User Service to get token
-TOKEN=$(grpcurl -plaintext \
-  -d '{"email":"user@example.com","password":"pass123"}' \
-  localhost:50051 user.UserService.Login \
-  | grep 'accessToken' | cut -d'"' -f4)
-
-# 2. Create article with auth
-grpcurl -plaintext \
-  -H "authorization: Bearer $TOKEN" \
-  -d '{"title":"Test Article","content":"Content here"}' \
-  localhost:50052 article.ArticleService.CreateArticle
-
-# 3. Get article (no auth needed)
-grpcurl -plaintext -d '{"id":1}' \
-  localhost:50052 article.ArticleService.GetArticle
+grpcurl -plaintext -d '{
+  "id": 1,
+  "title": "Updated Title",
+  "content": "Updated content..."
+}' localhost:50052 article.ArticleService/UpdateArticle
 ```
 
-## Configuration
-
-Key environment variables:
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `DB_HOST` | localhost | PostgreSQL host |
-| `DB_PORT` | 5432 | PostgreSQL port |
-| `DB_USER` | postgres | Database user |
-| `DB_PASSWORD` | postgres | Database password |
-| `DB_NAME` | agrios_articles | Database name |
-| `REDIS_ADDR` | localhost:6379 | Redis address (shared with User Service) |
-| `REDIS_PASSWORD` | "" | Redis password |
-| `REDIS_DB` | 0 | Redis database number |
-| `JWT_SECRET` | *required* | JWT secret (must match User Service!) |
-| `USER_SERVICE_ADDR` | localhost:50051 | User Service gRPC address |
-| `GRPC_PORT` | 50052 | gRPC server port |
-
-## Project Structure
-
-```
-service-2-article/
-├── cmd/server/main.go          # Entry point
-├── internal/
-│   ├── auth/                   # JWT validation
-│   ├── client/                 # User Service gRPC client
-│   ├── config/                 # Configuration loading
-│   ├── db/                     # Database connection
-│   ├── repository/             # Data access layer
-│   ├── response/               # Response helpers
-│   └── server/                 # gRPC server implementation
-├── proto/                      # Protocol buffer definitions
-├── migrations/                 # Database migrations
-├── Dockerfile                  # Container image
-└── .env.example               # Environment template
-```
-
-## Development
-
-### Generate Proto Files
-
-```bash
-protoc --go_out=. --go_opt=paths=source_relative \
-  --go-grpc_out=. --go-grpc_opt=paths=source_relative \
-  proto/article_service.proto
-```
-
-### Database Migrations
-
-Migrations are in `migrations/` directory. Apply manually:
-
-```bash
-psql -U postgres -d agrios_articles -f migrations/001_create_articles_table.sql
-```
-
-## Dependencies
-
-**Service Dependencies:**
-- **Redis** must be running for:
-  - Token blacklist validation (prevents logged-out tokens)
-  - **IMPORTANT:** Must be the same Redis instance as User Service
-- **User Service** must be running for:
-  - Article creation (JWT validation via User Service)
-  - User data enrichment (GetArticle, ListArticles)
-
-**Graceful Degradation:**
-- If User Service is unavailable, GetArticle returns article with empty user data
-- Article creation will fail (authentication required)
-- If Redis is unavailable, authentication will fail (fail-closed for security)
-
-## Troubleshooting
-
-**User Service connection error:**
-```
-ERROR: failed to connect to user service
-```
-- Check User Service is running: `grpcurl -plaintext localhost:50051 list`
-- Verify `USER_SERVICE_ADDR` in .env
-
-**Authentication required:**
+**Response:**
 ```json
-{"code":"014","message":"authentication required"}
+{
+  "code": "000",
+  "message": "success",
+  "data": {
+    "article": {
+      "id": 1,
+      "title": "Updated Title",
+      "content": "Updated content...",
+      "user_id": 1,
+      "created_at": "2025-01-01T00:00:00Z",
+      "updated_at": "2025-01-01T12:00:00Z"
+    }
+  }
+}
 ```
-- CreateArticle needs JWT token in metadata header
-- Get token from User Service Login endpoint
 
-**Database connection refused:**
-- Check PostgreSQL is running: `pg_isready`
-- Verify database exists: `psql -U postgres -l | grep agrios_articles`
+---
 
-**Port already in use:**
+### 4. DeleteArticle
+
+Delete an article.
+
+**Request:**
+```protobuf
+message DeleteArticleRequest {
+  int32 id = 1;  // Required
+}
+```
+
+**Example:**
 ```bash
-# Find process using port 50052
-netstat -ano | findstr :50052
-# Kill or change GRPC_PORT in .env
+grpcurl -plaintext -d '{"id": 1}' localhost:50052 article.ArticleService/DeleteArticle
 ```
 
-## License
+**Response:**
+```json
+{
+  "code": "000",
+  "message": "success",
+  "data": {
+    "success": true
+  }
+}
+```
 
-MIT License
+---
+
+### 5. ListArticles
+
+Get paginated article list with optional user filter.
+
+**Request:**
+```protobuf
+message ListArticlesRequest {
+  int32 page_size = 1;    // Default: 10
+  int32 page_number = 2;  // Default: 1
+  int32 user_id = 3;      // Optional: filter by author (0 = all)
+}
+```
+
+**Example:**
+```bash
+# List all articles
+grpcurl -plaintext -d '{
+  "page_size": 10,
+  "page_number": 1
+}' localhost:50052 article.ArticleService/ListArticles
+
+# Filter by author
+grpcurl -plaintext -d '{
+  "page_size": 10,
+  "page_number": 1,
+  "user_id": 1
+}' localhost:50052 article.ArticleService/ListArticles
+```
+
+**Response:**
+```json
+{
+  "code": "000",
+  "message": "success",
+  "data": {
+    "articles": [
+      {
+        "article": {
+          "id": 1,
+          "title": "First Article",
+          "content": "Content...",
+          "user_id": 1
+        },
+        "user": {
+          "id": 1,
+          "name": "John Doe",
+          "email": "john@example.com"
+        }
+      }
+    ],
+    "total": 25,
+    "page": 1,
+    "total_pages": 3
+  }
+}
+```
+
+---
+
+## Error Codes
+
+| Code | Description |
+|------|-------------|
+| `000` | Success |
+| `001` | Validation error |
+| `002` | User not found (author) |
+| `003` | Article not found |
+| `005` | Unauthorized (invalid/missing token) |
+| `500` | Internal server error |
+
+---
+
+## Service Dependencies
+
+- **User Service** - JWT validation, user data enrichment
+- **Redis** - Token blacklist (shared with User Service)
+
+If User Service unavailable: GetArticle returns article without user data.

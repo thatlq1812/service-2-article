@@ -4,6 +4,7 @@ import (
 	pb "service-2-article/proto"
 
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 // Standard response codes mapping
@@ -144,4 +145,31 @@ func MapGRPCCodeToString(code codes.Code) string {
 	default:
 		return CodeUnknownError
 	}
+}
+
+// GRPCError creates a standardized gRPC error with hints
+func GRPCError(code codes.Code, message string) error {
+	// Add hints based on code
+	hint := ""
+	switch code {
+	case codes.InvalidArgument:
+		hint = " Check input parameters for validity."
+	case codes.NotFound:
+		hint = " Verify the resource ID exists."
+	case codes.Unauthenticated:
+		hint = " Provide valid authentication credentials."
+	case codes.PermissionDenied:
+		hint = " Ensure you have the required permissions."
+	case codes.Internal:
+		hint = " Contact support if the issue persists."
+	default:
+		hint = ""
+	}
+	fullMessage := message + hint
+	return status.Error(code, fullMessage)
+}
+
+// GRPCErrorWithCode is an alias for GRPCError for backward compatibility
+func GRPCErrorWithCode(code codes.Code, message string) error {
+	return GRPCError(code, message)
 }
