@@ -57,19 +57,63 @@ message ListArticlesRequest {
 
 
 
+message CreateArticleResponse {
+  string code = 1;
+  string message = 2;
+  CreateArticleData data = 3;
+}
+
+message CreateArticleData {
+  Article article = 1;
+}
+
+message GetArticleResponse {
+  string code = 1;
+  string message = 2;
+  GetArticleData data = 3;
+}
+
+message GetArticleData {
+  ArticleWithUser article = 1;
+}
+
+message UpdateArticleResponse {
+  string code = 1;
+  string message = 2;
+  UpdateArticleData data = 3;
+}
+
+message UpdateArticleData {
+  Article article = 1;
+}
+
+message DeleteArticleResponse {
+  string code = 1;
+  string message = 2;
+  DeleteArticleData data = 3;
+}
+
+message DeleteArticleData {
+  bool success = 1;
+}
+
 message ListArticlesResponse {
+  string code = 1;
+  string message = 2;
+  ListArticlesData data = 3;
+}
+
+message ListArticlesData {
   repeated ArticleWithUser articles = 1;
   int32 total = 2;
   int32 page = 3;
   int32 total_pages = 4;
 }
 
-
-
 service ArticleService {
-  rpc CreateArticle(CreateArticleRequest) returns (Article);
-  rpc GetArticle(GetArticleRequest) returns (ArticleWithUser);
-  rpc UpdateArticle(UpdateArticleRequest) returns (Article);
-  rpc DeleteArticle(DeleteArticleRequest) returns (Article);
+  rpc CreateArticle(CreateArticleRequest) returns (CreateArticleResponse);
+  rpc GetArticle(GetArticleRequest) returns (GetArticleResponse);
+  rpc UpdateArticle(UpdateArticleRequest) returns (UpdateArticleResponse);
+  rpc DeleteArticle(DeleteArticleRequest) returns (DeleteArticleResponse);
   rpc ListArticles(ListArticlesRequest) returns (ListArticlesResponse);
 }

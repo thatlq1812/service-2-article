@@ -30,10 +30,10 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type ArticleServiceClient interface {
-	CreateArticle(ctx context.Context, in *CreateArticleRequest, opts ...grpc.CallOption) (*Article, error)
-	GetArticle(ctx context.Context, in *GetArticleRequest, opts ...grpc.CallOption) (*ArticleWithUser, error)
-	UpdateArticle(ctx context.Context, in *UpdateArticleRequest, opts ...grpc.CallOption) (*Article, error)
-	DeleteArticle(ctx context.Context, in *DeleteArticleRequest, opts ...grpc.CallOption) (*Article, error)
+	CreateArticle(ctx context.Context, in *CreateArticleRequest, opts ...grpc.CallOption) (*CreateArticleResponse, error)
+	GetArticle(ctx context.Context, in *GetArticleRequest, opts ...grpc.CallOption) (*GetArticleResponse, error)
+	UpdateArticle(ctx context.Context, in *UpdateArticleRequest, opts ...grpc.CallOption) (*UpdateArticleResponse, error)
+	DeleteArticle(ctx context.Context, in *DeleteArticleRequest, opts ...grpc.CallOption) (*DeleteArticleResponse, error)
 	ListArticles(ctx context.Context, in *ListArticlesRequest, opts ...grpc.CallOption) (*ListArticlesResponse, error)
 }
 
@@ -45,9 +45,9 @@ func NewArticleServiceClient(cc grpc.ClientConnInterface) ArticleServiceClient {
 	return &articleServiceClient{cc}
 }
 
-func (c *articleServiceClient) CreateArticle(ctx context.Context, in *CreateArticleRequest, opts ...grpc.CallOption) (*Article, error) {
+func (c *articleServiceClient) CreateArticle(ctx context.Context, in *CreateArticleRequest, opts ...grpc.CallOption) (*CreateArticleResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(Article)
+	out := new(CreateArticleResponse)
 	err := c.cc.Invoke(ctx, ArticleService_CreateArticle_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
@@ -55,9 +55,9 @@ func (c *articleServiceClient) CreateArticle(ctx context.Context, in *CreateArti
 	return out, nil
 }
 
-func (c *articleServiceClient) GetArticle(ctx context.Context, in *GetArticleRequest, opts ...grpc.CallOption) (*ArticleWithUser, error) {
+func (c *articleServiceClient) GetArticle(ctx context.Context, in *GetArticleRequest, opts ...grpc.CallOption) (*GetArticleResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(ArticleWithUser)
+	out := new(GetArticleResponse)
 	err := c.cc.Invoke(ctx, ArticleService_GetArticle_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
@@ -65,9 +65,9 @@ func (c *articleServiceClient) GetArticle(ctx context.Context, in *GetArticleReq
 	return out, nil
 }
 
-func (c *articleServiceClient) UpdateArticle(ctx context.Context, in *UpdateArticleRequest, opts ...grpc.CallOption) (*Article, error) {
+func (c *articleServiceClient) UpdateArticle(ctx context.Context, in *UpdateArticleRequest, opts ...grpc.CallOption) (*UpdateArticleResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(Article)
+	out := new(UpdateArticleResponse)
 	err := c.cc.Invoke(ctx, ArticleService_UpdateArticle_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
@@ -75,9 +75,9 @@ func (c *articleServiceClient) UpdateArticle(ctx context.Context, in *UpdateArti
 	return out, nil
 }
 
-func (c *articleServiceClient) DeleteArticle(ctx context.Context, in *DeleteArticleRequest, opts ...grpc.CallOption) (*Article, error) {
+func (c *articleServiceClient) DeleteArticle(ctx context.Context, in *DeleteArticleRequest, opts ...grpc.CallOption) (*DeleteArticleResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(Article)
+	out := new(DeleteArticleResponse)
 	err := c.cc.Invoke(ctx, ArticleService_DeleteArticle_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
@@ -99,10 +99,10 @@ func (c *articleServiceClient) ListArticles(ctx context.Context, in *ListArticle
 // All implementations must embed UnimplementedArticleServiceServer
 // for forward compatibility.
 type ArticleServiceServer interface {
-	CreateArticle(context.Context, *CreateArticleRequest) (*Article, error)
-	GetArticle(context.Context, *GetArticleRequest) (*ArticleWithUser, error)
-	UpdateArticle(context.Context, *UpdateArticleRequest) (*Article, error)
-	DeleteArticle(context.Context, *DeleteArticleRequest) (*Article, error)
+	CreateArticle(context.Context, *CreateArticleRequest) (*CreateArticleResponse, error)
+	GetArticle(context.Context, *GetArticleRequest) (*GetArticleResponse, error)
+	UpdateArticle(context.Context, *UpdateArticleRequest) (*UpdateArticleResponse, error)
+	DeleteArticle(context.Context, *DeleteArticleRequest) (*DeleteArticleResponse, error)
 	ListArticles(context.Context, *ListArticlesRequest) (*ListArticlesResponse, error)
 	mustEmbedUnimplementedArticleServiceServer()
 }
@@ -114,16 +114,16 @@ type ArticleServiceServer interface {
 // pointer dereference when methods are called.
 type UnimplementedArticleServiceServer struct{}
 
-func (UnimplementedArticleServiceServer) CreateArticle(context.Context, *CreateArticleRequest) (*Article, error) {
+func (UnimplementedArticleServiceServer) CreateArticle(context.Context, *CreateArticleRequest) (*CreateArticleResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method CreateArticle not implemented")
 }
-func (UnimplementedArticleServiceServer) GetArticle(context.Context, *GetArticleRequest) (*ArticleWithUser, error) {
+func (UnimplementedArticleServiceServer) GetArticle(context.Context, *GetArticleRequest) (*GetArticleResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetArticle not implemented")
 }
-func (UnimplementedArticleServiceServer) UpdateArticle(context.Context, *UpdateArticleRequest) (*Article, error) {
+func (UnimplementedArticleServiceServer) UpdateArticle(context.Context, *UpdateArticleRequest) (*UpdateArticleResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method UpdateArticle not implemented")
 }
-func (UnimplementedArticleServiceServer) DeleteArticle(context.Context, *DeleteArticleRequest) (*Article, error) {
+func (UnimplementedArticleServiceServer) DeleteArticle(context.Context, *DeleteArticleRequest) (*DeleteArticleResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method DeleteArticle not implemented")
 }
 func (UnimplementedArticleServiceServer) ListArticles(context.Context, *ListArticlesRequest) (*ListArticlesResponse, error) {
