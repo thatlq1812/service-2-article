@@ -16,6 +16,7 @@ Article management microservice for Agrios platform with user integration.
 
 - Go 1.21+
 - PostgreSQL 15+
+- **Redis 7+** (shared with User Service for token blacklist)
 - **User Service running** (for user data integration)
 
 ### Setup
@@ -163,6 +164,10 @@ Key environment variables:
 | `DB_USER` | postgres | Database user |
 | `DB_PASSWORD` | postgres | Database password |
 | `DB_NAME` | agrios_articles | Database name |
+| `REDIS_ADDR` | localhost:6379 | Redis address (shared with User Service) |
+| `REDIS_PASSWORD` | "" | Redis password |
+| `REDIS_DB` | 0 | Redis database number |
+| `JWT_SECRET` | *required* | JWT secret (must match User Service!) |
 | `USER_SERVICE_ADDR` | localhost:50051 | User Service gRPC address |
 | `GRPC_PORT` | 50052 | gRPC server port |
 
@@ -206,13 +211,17 @@ psql -U postgres -d agrios_articles -f migrations/001_create_articles_table.sql
 ## Dependencies
 
 **Service Dependencies:**
-- User Service must be running for:
-  - Article creation (JWT validation)
+- **Redis** must be running for:
+  - Token blacklist validation (prevents logged-out tokens)
+  - **IMPORTANT:** Must be the same Redis instance as User Service
+- **User Service** must be running for:
+  - Article creation (JWT validation via User Service)
   - User data enrichment (GetArticle, ListArticles)
 
 **Graceful Degradation:**
 - If User Service is unavailable, GetArticle returns article with empty user data
 - Article creation will fail (authentication required)
+- If Redis is unavailable, authentication will fail (fail-closed for security)
 
 ## Troubleshooting
 
