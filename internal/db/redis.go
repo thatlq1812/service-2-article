@@ -39,7 +39,7 @@ func NewRedisClient(addr, password string, db int) (*RedisClient, error) {
 // This checks the same Redis keys that User Service uses for logout
 func (r *RedisClient) IsTokenBlacklisted(ctx context.Context, token string) (bool, error) {
 	key := fmt.Sprintf("blacklist:%s", token)
-	
+
 	exists, err := r.client.Exists(ctx, key).Result()
 	if err != nil {
 		log.Printf("[Redis] Error checking blacklist: token=%s, error=%v", token[:20], err)
