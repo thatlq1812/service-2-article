@@ -1,20 +1,16 @@
-module service-2-article
+module github.com/thatlq1812/service-2-article
 
-go 1.25
-
-replace agrios => ../
-
-replace service-1-user => ../service-1-user
+go 1.25.4
 
 require (
-	agrios v0.0.0-00010101000000-000000000000
 	github.com/golang-jwt/jwt/v5 v5.3.0
 	github.com/jackc/pgx/v5 v5.7.6
 	github.com/joho/godotenv v1.5.1
 	github.com/redis/go-redis/v9 v9.17.2
+	github.com/thatlq1812/agrios-shared v1.2.3
+	github.com/thatlq1812/service-1-user v1.2.3
 	google.golang.org/grpc v1.77.0
 	google.golang.org/protobuf v1.36.10
-	service-1-user v0.0.0-00010101000000-000000000000
 )
 
 require (

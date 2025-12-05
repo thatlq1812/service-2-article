@@ -10,7 +10,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/status"
 
-	"service-2-article/internal/response"
+	"github.com/thatlq1812/service-2-article/internal/response"
 
 	userpb "github.com/thatlq1812/service-1-user/proto"
 )

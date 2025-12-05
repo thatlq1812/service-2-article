@@ -2,7 +2,8 @@ package repository
 
 import (
 	"context"
-	pb "service-2-article/proto"
+
+	pb "github.com/thatlq1812/service-2-article/proto"
 )
 
 // ArticleRepository define CRUD operations for articles

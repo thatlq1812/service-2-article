@@ -6,13 +6,12 @@ import (
 	"log"
 	"strings"
 
-	"service-2-article/internal/auth"
-	"service-2-article/internal/client"
-	"service-2-article/internal/repository"
-	"service-2-article/internal/response"
-	pb "service-2-article/proto"
-
 	userpb "github.com/thatlq1812/service-1-user/proto"
+	"github.com/thatlq1812/service-2-article/internal/auth"
+	"github.com/thatlq1812/service-2-article/internal/client"
+	"github.com/thatlq1812/service-2-article/internal/repository"
+	"github.com/thatlq1812/service-2-article/internal/response"
+	pb "github.com/thatlq1812/service-2-article/proto"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"

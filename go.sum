@@ -40,6 +40,10 @@ github.com/stretchr/testify v1.3.0/go.mod h1:M5WIy9Dh21IEIfnGCwXGc5bZfKNJtfHm1UV
 github.com/stretchr/testify v1.7.0/go.mod h1:6Fq8oRcR53rry900zMqJjRRixrwX3KX962/h/Wwjteg=
 github.com/stretchr/testify v1.8.1 h1:w7B6lhMri9wdJUVmEZPGGhZzrYTPvgJArz7wNPgYKsk=
 github.com/stretchr/testify v1.8.1/go.mod h1:w2LPCIKwWwSfY2zedu0+kehJoqGctiVI29o6fzry7u4=
+github.com/thatlq1812/agrios-shared v1.2.3 h1:/AVNTQWt9l7rg5iiDSntLJqW6/15i4qcYtwp8IHLsto=
+github.com/thatlq1812/agrios-shared v1.2.3/go.mod h1:HjSbBocWWn8NUwZtM66ESsD5H3y7+MCwkEqhn1El/qw=
+github.com/thatlq1812/service-1-user v1.2.3 h1:N3PnE+MN9vam7QRDLvgsBzLB0glAy3bs+DP3KhUq/xs=
+github.com/thatlq1812/service-1-user v1.2.3/go.mod h1:ybvyaXGZACWXmpv9ohH7vZuKa0r/WGa8ZvdpEt0RTR8=
 go.opentelemetry.io/auto/sdk v1.2.1 h1:jXsnJ4Lmnqd11kwkBV2LgLoFMZKizbCi5fNZ/ipaZ64=
 go.opentelemetry.io/auto/sdk v1.2.1/go.mod h1:KRTj+aOaElaLi+wW1kO/DZRXwkF4C5xPbEe3ZiIhN7Y=
 go.opentelemetry.io/otel v1.38.0 h1:RkfdswUDRimDg0m2Az18RKOsnI8UDzppJAtj01/Ymk8=

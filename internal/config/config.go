@@ -1,9 +1,10 @@
 package config
 
 import (
-	"agrios/pkg/common"
-	"service-2-article/internal/db"
 	"time"
+
+	"github.com/thatlq1812/agrios-shared/pkg/common"
+	"github.com/thatlq1812/service-2-article/internal/db"
 )
 
 // Config holds all configuration for the application
