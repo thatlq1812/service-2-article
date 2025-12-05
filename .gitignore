@@ -37,3 +37,4 @@ temp/
 
 # Environment variables (use .env.example as template)
 .env
+bin/
