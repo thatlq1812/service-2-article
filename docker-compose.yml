@@ -2,15 +2,15 @@ version: '3.8'
 
 services:
   # PostgreSQL Database for Article Service
-  postgres:
+  postgres-article:
     image: postgres:15-alpine
-    container_name: article-service-postgres
+    container_name: article-postgres
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: agrios_articles
     ports:
-      - "5433:5432" # Different external port to avoid conflict
+      - "5433:5432"
     volumes:
       - article_postgres_data:/var/lib/postgresql/data
       - ./migrations/001_create_articles_table.sql:/docker-entrypoint-initdb.d/001_create_articles_table.sql
@@ -20,60 +20,17 @@ services:
       timeout: 5s
       retries: 5
     networks:
-      - article-service-network
-
-  # Redis Cache (shared with User Service for token validation)
-  redis:
-    image: redis:7-alpine
-    container_name: article-service-redis
-    ports:
-      - "6380:6379" # Different external port to avoid conflict
-    networks:
-      - article-service-network
-    healthcheck:
-      test: [ "CMD", "redis-cli", "ping" ]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  # User Service (gRPC) - needed for article author lookup
-  user-service:
-    image: thatlq1812/agrios-user-service:latest
-    container_name: article-user-service
-    environment:
-      - DB_HOST=postgres
-      - DB_PORT=5432
-      - DB_USER=postgres
-      - DB_PASSWORD=postgres
-      - DB_NAME=agrios_users
-      - GRPC_PORT=50051
-      - JWT_SECRET=your-super-secret-jwt-key-change-in-production
-      - REDIS_ADDR=redis:6379
-      - REDIS_PASSWORD=
-      - REDIS_DB=0
-    ports:
-      - "50051:50051"
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    networks:
-      - article-service-network
-    healthcheck:
-      test: [ "CMD", "nc", "-z", "localhost", "50051" ]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+      - article-network
 
   # Article Service (gRPC)
+  # Prerequisites: User Service must be running (service-1)
   article-service:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: article-service-app
+    container_name: article-service
     environment:
-      - DB_HOST=postgres
+      - DB_HOST=postgres-article
       - DB_PORT=5432
       - DB_USER=postgres
       - DB_PASSWORD=postgres
@@ -84,23 +41,21 @@ services:
       - DB_MAX_CONN_IDLE_TIME=30m
       - DB_CONNECT_TIMEOUT=5s
       - GRPC_PORT=50052
-      - USER_SERVICE_ADDR=user-service:50051
+      - USER_SERVICE_ADDR=host.docker.internal:50051
       - JWT_SECRET=your-super-secret-jwt-key-change-in-production
-      - REDIS_ADDR=redis:6379
+      - REDIS_ADDR=host.docker.internal:6379
       - REDIS_PASSWORD=
       - REDIS_DB=0
     ports:
       - "50052:50052"
     depends_on:
-      postgres:
+      postgres-article:
         condition: service_healthy
-      redis:
-        condition: service_healthy
-      user-service:
-        condition: service_started
     restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     networks:
-      - article-service-network
+      - article-network
     healthcheck:
       test: [ "CMD", "nc", "-z", "localhost", "50052" ]
       interval: 30s
@@ -112,5 +67,5 @@ volumes:
     driver: local
 
 networks:
-  article-service-network:
+  article-network:
     driver: bridge
