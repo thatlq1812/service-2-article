@@ -27,57 +27,75 @@
 
 ## Quick Start
 
-**For new users cloning the project, choose one:**
+**⚠️ Service-2 requires Service-1 (User Service) running first.**
 
-### Quick Start 1: Run All Services (Recommended)
+### Standalone Mode (This Service Only)
+
 ```bash
-# Clone and setup
+# PREREQUISITE: Start Service-1 first
+cd ../service-1-user
+docker-compose up -d
+sleep 15
+
+# Then start Service-2
+cd ../service-2-article
 git clone https://github.com/thatlq1812/service-2-article.git
 cd service-2-article
 
 # Configure (optional - defaults work fine)
 cp .env.example .env
 
-# Start all services (User + Article + Gateway)
+# Build and start (includes PostgreSQL only)
+docker-compose build --no-cache
 docker-compose up -d
-sleep 15
+
+# Wait for healthy status
+sleep 10
 
 # Verify
-docker logs agrios-article-service
-
-# Install grpcurl for testing (if not already installed)
-go install github.com/fullstorydev/grpcurl/cmd/grpcurl@latest
+docker ps
+docker logs article-service
 
 # Test
 grpcurl -plaintext localhost:50052 list
 ```
 
-### Quick Start 2: Run Article Service Only (Standalone)
+**Exposed Ports:**
+- `50052` - Article Service gRPC
+- `5433` - PostgreSQL (mapped to avoid conflict with Service-1's 5432)
+
+**External Dependencies:**
+- `host.docker.internal:50051` - User Service (for author lookup)
+- `host.docker.internal:6379` - Redis (from Service-1, for caching)
+
+### Multi-Service Sequential Startup
+
+**Order:** Service-1 → Service-2 → Service-3
+
 ```bash
-# Clone and setup
-git clone https://github.com/thatlq1812/service-2-article.git
-cd service-2-article
-
-# Configure (optional - defaults work fine)
-cp .env.example .env
-
-# Start Article Service with dependencies
-# Note: This includes User Service (needed for author info)
+# Step 1: Start User Service (Foundation)
+cd service-1-user
 docker-compose up -d
 sleep 15
 
-# Verify
-docker logs article-service-app
+# Step 2: Start Article Service (this service)
+cd ../service-2-article
+docker-compose up -d
+sleep 10
 
-# Install grpcurl for testing (if not already installed)
-go install github.com/fullstorydev/grpcurl/cmd/grpcurl@latest
+# Step 3: Start Gateway (optional)
+cd ../service-3-gateway
+docker-compose up -d
+sleep 5
 
-# Test
-grpcurl -plaintext localhost:50052 list
+# Verify all services
+docker ps
 ```
 
-**Service will be running on port 50052**  
-**User Service will be running on port 50051** (for author lookup)
+**Important Notes:**
+- Service-2 connects to Service-1 via `host.docker.internal:50051`
+- Ensure Service-1 is healthy before starting Service-2
+- Service-2 runs its own PostgreSQL on port 5433
 
 See [Setup Options](#setup-options) for detailed instructions.
 
