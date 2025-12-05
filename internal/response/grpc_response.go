@@ -43,6 +43,18 @@ func GetArticleSuccess(article *pb.ArticleWithUser) *pb.GetArticleResponse {
 	}
 }
 
+// GetArticleSuccessWithMessage returns a success response with custom message
+// Used for graceful degradation scenarios (e.g., author info unavailable)
+func GetArticleSuccessWithMessage(article *pb.ArticleWithUser, message string) *pb.GetArticleResponse {
+	return &pb.GetArticleResponse{
+		Code:    CodeSuccess,
+		Message: message,
+		Data: &pb.GetArticleData{
+			Article: article,
+		},
+	}
+}
+
 func UpdateArticleSuccess(article *pb.Article) *pb.UpdateArticleResponse {
 	return &pb.UpdateArticleResponse{
 		Code:    CodeSuccess,

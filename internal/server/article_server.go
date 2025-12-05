@@ -110,6 +110,7 @@ func (s *ArticleServer) CreateArticle(ctx context.Context, req *pb.CreateArticle
 
 // GetArticle retrieves an article with user information
 // This is a convenience method that delegates to GetArticleWithUser
+// Implements graceful degradation: returns article even if user info is unavailable
 func (s *ArticleServer) GetArticle(ctx context.Context, req *pb.GetArticleRequest) (*pb.GetArticleResponse, error) {
 	// Validate input
 	if req.Id <= 0 {
@@ -118,14 +119,23 @@ func (s *ArticleServer) GetArticle(ctx context.Context, req *pb.GetArticleReques
 	}
 
 	// Get article with user
-	article, err := s.GetArticleWithUser(ctx, req)
+	articleWithUser, err := s.GetArticleWithUser(ctx, req)
 	if err != nil {
-		// GetArticleWithUser already returns wrapped errors in ArticleWithUser
-		// We need to convert to GetArticleResponse error
+		// GetArticleWithUser returns error only for article retrieval failures
+		// User Service failures are handled gracefully with nil user
 		st := status.Convert(err)
 		return response.GetArticleError(st.Code(), st.Message()), nil
 	}
-	return response.GetArticleSuccess(article), nil
+
+	// Check if user info is missing (graceful degradation scenario)
+	message := "success"
+	if articleWithUser.User == nil {
+		message = "success (author information unavailable)"
+		log.Printf("[GetArticle] WARN: Returned article without author info: article_id=%d, user_id=%d",
+			articleWithUser.Article.Id, articleWithUser.Article.UserId)
+	}
+
+	return response.GetArticleSuccessWithMessage(articleWithUser, message), nil
 }
 
 // GetArticleWithUser retrieves an article with associated user information via inter-service communication
@@ -149,26 +159,35 @@ func (s *ArticleServer) GetArticleWithUser(ctx context.Context, req *pb.GetArtic
 	}
 
 	// 2. Fetch user information from User Service (inter-service communication)
+	// Implements graceful degradation: returns article even if user fetch fails
 	log.Printf("[GetArticleWithUser] Fetching user info: article_id=%d, user_id=%d", article.Id, article.UserId)
 	userServiceUser, err := s.userClient.GetUser(ctx, article.UserId)
 	if err != nil {
 		st := status.Convert(err)
 		switch st.Code() {
 		case codes.NotFound:
-			log.Printf("[GetArticleWithUser] User not found (graceful degradation): article_id=%d, user_id=%d", article.Id, article.UserId)
+			// User deleted or doesn't exist - this is expected, return article without user
+			log.Printf("[GetArticleWithUser] WARN: User not found (graceful degradation): article_id=%d, user_id=%d", article.Id, article.UserId)
 			return &pb.ArticleWithUser{
 				Article: article,
 				User:    nil,
 			}, nil
 		case codes.Unavailable, codes.DeadlineExceeded:
-			log.Printf("[GetArticleWithUser] User service unavailable (graceful degradation): article_id=%d, user_id=%d, code=%s", article.Id, article.UserId, st.Code())
+			// User Service down or timeout - return article without user to maintain availability
+			log.Printf("[GetArticleWithUser] WARN: User Service unavailable (graceful degradation): article_id=%d, user_id=%d, code=%s, error=%v",
+				article.Id, article.UserId, st.Code(), st.Message())
 			return &pb.ArticleWithUser{
 				Article: article,
 				User:    nil,
 			}, nil
 		default:
-			log.Printf("[GetArticleWithUser] User service error: article_id=%d, user_id=%d, error=%v", article.Id, article.UserId, err)
-			return nil, response.GRPCError(codes.Internal, "Failed to get user from user service. Contact support if the issue persists.")
+			// Unexpected error - log as ERROR and still apply graceful degradation
+			log.Printf("[GetArticleWithUser] ERROR: User Service unexpected error (graceful degradation): article_id=%d, user_id=%d, code=%s, error=%v",
+				article.Id, article.UserId, st.Code(), err)
+			return &pb.ArticleWithUser{
+				Article: article,
+				User:    nil,
+			}, nil
 		}
 	}
 
@@ -330,19 +349,38 @@ func (s *ArticleServer) ListArticles(ctx context.Context, req *pb.ListArticlesRe
 	}
 
 	// Enrich articles with user information from User Service
+	// Implements graceful degradation: includes articles even if user info fetch fails
 	log.Printf("[ListArticles] Fetching user info for %d articles", len(articles))
 	articlesWithUser := make([]*pb.ArticleWithUser, 0, len(articles))
+	failedUserFetches := 0
+
 	for _, article := range articles {
 		userServiceUser, err := s.userClient.GetUser(ctx, article.UserId)
 		if err != nil {
 			// If user not found or service unavailable, include article with nil user (graceful degradation)
-			log.Printf("[ListArticles] Failed to get user (graceful degradation): article_id=%d, user_id=%d, error=%v", article.Id, article.UserId, err)
+			st := status.Convert(err)
+			switch st.Code() {
+			case codes.NotFound:
+				log.Printf("[ListArticles] WARN: User not found (graceful degradation): article_id=%d, user_id=%d", article.Id, article.UserId)
+			case codes.Unavailable, codes.DeadlineExceeded:
+				log.Printf("[ListArticles] WARN: User Service unavailable (graceful degradation): article_id=%d, user_id=%d, code=%s",
+					article.Id, article.UserId, st.Code())
+			default:
+				log.Printf("[ListArticles] ERROR: User Service error (graceful degradation): article_id=%d, user_id=%d, error=%v",
+					article.Id, article.UserId, err)
+			}
 			userServiceUser = nil
+			failedUserFetches++
 		}
 		articlesWithUser = append(articlesWithUser, &pb.ArticleWithUser{
 			Article: article,
 			User:    convertUser(userServiceUser),
 		})
+	}
+
+	if failedUserFetches > 0 {
+		log.Printf("[ListArticles] WARN: %d/%d articles returned without author info due to User Service issues",
+			failedUserFetches, len(articles))
 	}
 
 	log.Printf("[ListArticles] Success: returned=%d, total=%d, page=%d", len(articlesWithUser), total, pageNumber)
