@@ -48,46 +48,113 @@ Article Service manages content creation and retrieval, integrating with User Se
 **Prerequisites:**
 - Docker 20.10+
 - Docker Compose 1.29+
+- Git
 
-**Quick Start:**
+---
+
+#### Option 1A: Run from Project Root (All Services)
+
+Run Article Service along with User Service and Gateway.
+
 ```bash
-# From project root
+# 1. Clone repository
+git clone https://github.com/thatlq1812/agrios.git
 cd agrios
 
-# Configure environment
+# 2. Configure environment
 cp service-2-article/.env.example service-2-article/.env
+# Optional: Edit service-2-article/.env if needed
 
-# Start all services (includes Article Service)
+# 3. Start all services
+# This will start:
+#   - PostgreSQL (port 5432)
+#   - Redis (port 6379)
+#   - User Service (port 50051)
+#   - Article Service (port 50052)
+#   - Gateway (port 8080)
 docker-compose up -d
 
-# Wait for services
+# 4. Wait for initialization
 sleep 15
 
-# Run migrations
-bash scripts/init-services.sh
+# 5. Check service status
+docker-compose ps
 
-# Verify service
-docker-compose logs -f article-service
+# Expected: All services Up (healthy)
+
+# 6. View Article Service logs
+docker logs agrios-article-service --tail 20
+
+# Expected output:
+# Connected to PostgreSQL successfully
+# Connected to User Service successfully
+# Article Service (gRPC) listening on port 50052
 ```
 
-**Article Service Docker Details:**
-```yaml
-# From docker-compose.yml
-article-service:
-  build: ./service-2-article
-  ports:
-    - "50052:50052"
-  depends_on:
-    - postgres
-    - user-service
-  environment:
-    - DB_HOST=postgres
-    - USER_SERVICE_HOST=user-service
-```
+---
 
-**Rebuild after code changes:**
+#### Option 1B: Run Article Service Only (Standalone)
+
+Run Article Service independently with its own dependencies.
+
+**Note:** This setup includes User Service since Article Service needs it for author lookup.
+
 ```bash
+# 1. Clone repository
+git clone https://github.com/thatlq1812/agrios.git
+cd agrios/service-2-article
+
+# 2. Configure environment
+cp .env.example .env
+# Optional: Edit .env if needed
+
+# 3. Start Article Service with dependencies
+# This will start:
+#   - PostgreSQL for articles (port 5433)
+#   - Redis (port 6380)
+#   - User Service (port 50051) - needed for author info
+#   - Article Service (port 50052)
+docker-compose up -d
+
+# 4. Wait for initialization
+sleep 15
+
+# 5. Check service status
+docker-compose ps
+
+# Expected output:
+# article-service-postgres  Up (healthy)
+# article-service-redis     Up (healthy)
+# article-user-service      Up (healthy)
+# article-service-app       Up (healthy)
+
+# 6. View logs
+docker logs article-service-app --tail 20
+```
+
+**Important Notes:**
+- **PostgreSQL & Redis started automatically** - no manual installation needed
+- **User Service included** - Article Service calls User Service for author information
+- Different ports used (5433, 6380) to avoid conflicts with root setup
+- Database tables created automatically from migrations
+- All services run in isolated Docker containers
+
+**Common Commands:**
+
+```bash
+# Rebuild after code changes (from root)
+cd agrios
 docker-compose up -d --build article-service
+
+# Rebuild standalone (from service-2-article)
+cd agrios/service-2-article
+docker-compose up -d --build article-service
+
+# Stop services
+docker-compose down
+
+# Remove volumes and clean data
+docker-compose down -v
 ```
 
 ---
