@@ -4,12 +4,15 @@
 
 **Protocol:** gRPC  
 **Port:** 50052  
-**Database:** PostgreSQL
+**Database:** PostgreSQL  
+**Dependencies:** User Service (for author information)
 
 ---
 
 ## Table of Contents
 
+- [Quick Start](#quick-start)
+- [Prerequisites](#prerequisites)
 - [Overview](#overview)
 - [Setup Options](#setup-options)
   - [Option 1: Docker](#option-1-docker-recommended)
@@ -19,6 +22,111 @@
 - [Database Schema](#database-schema)
 - [Testing](#testing)
 - [Troubleshooting](#troubleshooting)
+
+---
+
+## Quick Start
+
+**For new users cloning the project, choose one:**
+
+### Quick Start 1: Run All Services (Recommended)
+```bash
+# Clone and setup
+git clone https://github.com/thatlq1812/service-2-article.git
+cd service-2-article
+
+# Configure (optional - defaults work fine)
+cp .env.example .env
+
+# Start all services (User + Article + Gateway)
+docker-compose up -d
+sleep 15
+
+# Verify
+docker logs agrios-article-service
+
+# Install grpcurl for testing (if not already installed)
+go install github.com/fullstorydev/grpcurl/cmd/grpcurl@latest
+
+# Test
+grpcurl -plaintext localhost:50052 list
+```
+
+### Quick Start 2: Run Article Service Only (Standalone)
+```bash
+# Clone and setup
+git clone https://github.com/thatlq1812/service-2-article.git
+cd service-2-article
+
+# Configure (optional - defaults work fine)
+cp .env.example .env
+
+# Start Article Service with dependencies
+# Note: This includes User Service (needed for author info)
+docker-compose up -d
+sleep 15
+
+# Verify
+docker logs article-service-app
+
+# Install grpcurl for testing (if not already installed)
+go install github.com/fullstorydev/grpcurl/cmd/grpcurl@latest
+
+# Test
+grpcurl -plaintext localhost:50052 list
+```
+
+**Service will be running on port 50052**  
+**User Service will be running on port 50051** (for author lookup)
+
+See [Setup Options](#setup-options) for detailed instructions.
+
+---
+
+## Prerequisites
+
+### For Docker Setup (Recommended)
+
+- **Docker** 20.10+ and **Docker Compose** 1.29+
+- **Git** for cloning the repository
+- 2GB RAM minimum
+- Ports 50052, 50051, 5433, 6380 available
+
+### For Local Development
+
+- **Go** 1.21 or higher
+- **PostgreSQL** 13+ (local installation)
+- **Redis** 6+ (local installation)
+- **grpcurl** for testing gRPC endpoints
+- **User Service** running on port 50051
+
+### Install grpcurl
+
+**Via Go:**
+```bash
+go install github.com/fullstorydev/grpcurl/cmd/grpcurl@latest
+```
+
+**Windows (Chocolatey):**
+```powershell
+choco install grpcurl
+```
+
+**Linux:**
+```bash
+# Ubuntu/Debian
+sudo apt-get install grpcurl
+
+# Or download from GitHub releases
+wget https://github.com/fullstorydev/grpcurl/releases/download/v1.8.7/grpcurl_1.8.7_linux_x86_64.tar.gz
+tar -xvf grpcurl_1.8.7_linux_x86_64.tar.gz
+sudo mv grpcurl /usr/local/bin/
+```
+
+**macOS:**
+```bash
+brew install grpcurl
+```
 
 ---
 
@@ -49,6 +157,10 @@ Article Service manages content creation and retrieval, integrating with User Se
 - Docker 20.10+
 - Docker Compose 1.29+
 - Git
+- Go 1.21+ (for grpcurl testing tool)
+- grpcurl (install: `go install github.com/fullstorydev/grpcurl/cmd/grpcurl@latest`)
+
+**Note:** grpcurl is needed to test gRPC services. Install it once, use for all services.
 
 ---
 
@@ -101,8 +213,8 @@ Run Article Service independently with its own dependencies.
 
 ```bash
 # 1. Clone repository
-git clone https://github.com/thatlq1812/agrios.git
-cd agrios/service-2-article
+git clone https://github.com/thatlq1812/service-2-article.git
+cd service-2-article
 
 # 2. Configure environment
 cp .env.example .env
@@ -147,7 +259,7 @@ cd agrios
 docker-compose up -d --build article-service
 
 # Rebuild standalone (from service-2-article)
-cd agrios/service-2-article
+cd service-2-article
 docker-compose up -d --build article-service
 
 # Stop services
